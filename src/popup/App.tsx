@@ -2,7 +2,7 @@ import Overlay from "@/components/Overlay";
 
 export default function App() {
   return (
-    <div className="relative aspect-square w-[320px] rounded-2xl border">
+    <div className="aspect-square w-[310px]">
       {/* Dashed Grid */}
       <Overlay />
       {/* content */}
@@ -15,7 +15,7 @@ export default function App() {
         {/* button with aria-describedby for accessibility */}
         <button
           type="button"
-          className="bg-primary text-primary-foreground focus-visible:ring-ring inline-flex items-center justify-center rounded-md px-4 py-2 text-sm font-medium shadow-sm hover:opacity-90 focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
+          className="bg-primary text-primary-foreground focus-visible:ring-ring inline-flex cursor-pointer items-center justify-center rounded-md px-4 py-2 text-sm font-medium shadow-sm hover:opacity-90 focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
           aria-label="Block this website"
           aria-describedby="block-desc"
         >
