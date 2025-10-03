@@ -25,6 +25,7 @@ export default defineManifest({
       matches: [
         "http://localhost:3000/*", // ✅ dev dashboard
       ],
+      run_at: "document_start",
     },
     {
       js: ["src/content/main.tsx"], // main blocker logic
