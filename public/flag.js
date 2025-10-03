@@ -1,0 +1,1 @@
+window.__BLOCKER_EXTENSION_INSTALLED = true;
