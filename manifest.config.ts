@@ -14,7 +14,7 @@ export default defineManifest({
     },
     default_popup: "src/popup/index.html",
   },
-  permissions: ["tabs", "storage", "webRequest", "webRequestBlocking"],
+  permissions: ["tabs", "storage", "webRequest"],
   background: {
     service_worker: "src/background/index.ts",
     type: "module",
@@ -23,15 +23,18 @@ export default defineManifest({
     {
       js: ["src/content/injectFlag.ts"],
       matches: [
-        "http://localhost:3000/*", // ✅ dev dashboard
+        "http://localhost:3000/*", // dev dashboard
       ],
       run_at: "document_start",
     },
     {
       js: ["src/content/main.tsx"], // main blocker logic
-      matches: ["https://*/*"], // run on all sites
+      matches: ["https://*/*"],
     },
   ],
+  externally_connectable: {
+    matches: ["http://localhost:3000/*", "http://127.0.0.1:3000/*"],
+  },
   web_accessible_resources: [
     {
       resources: ["flag.js"],
