@@ -6,6 +6,7 @@ export default defineManifest({
   name: pkg.name,
   description: "Block distracting websites and stay productive.",
   version: pkg.version,
+
   icons: {
     48: "logo.png",
     128: "logo.png",
@@ -18,8 +19,14 @@ export default defineManifest({
     default_popup: "src/popup/index.html",
   },
 
-  permissions: ["tabs", "storage", "webRequest"],
-  host_permissions: ["http://localhost:3000/*", "http://127.0.0.1:3000/*"],
+  permissions: [
+    "storage",
+    "tabs",
+    "declarativeNetRequest",
+    "declarativeNetRequestWithHostAccess",
+  ],
+
+  host_permissions: ["<all_urls>"],
 
   background: {
     service_worker: "src/background/index.ts",
@@ -29,17 +36,16 @@ export default defineManifest({
   content_scripts: [
     {
       js: ["src/content/injectFlag.ts"],
-      matches: ["http://localhost:3000/*"], // dev dashboard detection
+      matches: ["http://localhost:3000/*"],
       run_at: "document_start",
     },
     {
-      js: ["src/content/main.tsx"], // main blocker logic
-      matches: ["https://*/*"],
+      js: ["src/content/main.tsx"],
+      matches: ["https://*/*", "http://*/*"],
       run_at: "document_idle",
     },
   ],
 
-  //  Allow communication with dashboard
   externally_connectable: {
     matches: ["http://localhost:3000/*", "http://127.0.0.1:3000/*"],
   },
@@ -50,4 +56,8 @@ export default defineManifest({
       matches: ["<all_urls>"],
     },
   ],
+
+  declarative_net_request: {
+    rule_resources: [],
+  },
 });

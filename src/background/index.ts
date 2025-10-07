@@ -12,7 +12,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             sendResponse({ success: false, error: "Invalid URL" });
             break;
           }
-
           const result = await sendTokenToDashboard({
             action: "ADD_SITE",
             site: domain,
@@ -31,15 +30,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           break;
         }
 
-        default: {
+        default:
           sendResponse({ success: false, error: "Unknown message type" });
-        }
       }
     } catch (err) {
       sendResponse({ success: false, error: String(err) });
     }
   })();
-
   return true;
 });
 
@@ -50,60 +47,66 @@ chrome.runtime.onMessageExternal.addListener((msg, sender, sendResponse) => {
     return true;
   }
 
-  switch (msg.type) {
-    case "PING":
-      sendResponse({ pong: true });
-      return true;
+  (async () => {
+    switch (msg.type) {
+      case "PING":
+        sendResponse({ pong: true });
+        break;
 
-    case "SAVE_TOKEN":
-      chrome.storage.sync.set({ token: msg.token }, () => {
-        if (chrome.runtime.lastError) {
-          sendResponse({
-            success: false,
-            error: chrome.runtime.lastError.message,
-          });
-        } else {
-          sendResponse({ success: true });
+      case "SAVE_TOKEN":
+        await chrome.storage.sync.set({ token: msg.token });
+        sendResponse({ success: true });
+        break;
+
+      case "DELETE_TOKEN":
+        await chrome.storage.sync.remove("token");
+        sendResponse({ success: true });
+        break;
+
+      case "UPDATE_BLOCKED_SITES":
+        if (!Array.isArray(msg.blockedSites)) {
+          sendResponse({ success: false, error: "Invalid blockedSites array" });
+          return;
         }
-      });
-      return true;
+        await chrome.storage.sync.set({ blockedSites: msg.blockedSites });
+        await updateDeclarativeRules(msg.blockedSites);
+        sendResponse({ success: true });
+        break;
 
-    case "DELETE_TOKEN":
-      chrome.storage.sync.remove("token", () => {
-        if (chrome.runtime.lastError) {
-          sendResponse({
-            success: false,
-            error: chrome.runtime.lastError.message,
-          });
-        } else {
-          sendResponse({ success: true });
-        }
-      });
-      return true;
+      default:
+        sendResponse({ success: false, error: "Unknown message type" });
+    }
+  })();
 
-    case "UPDATE_BLOCKED_SITES":
-      if (!Array.isArray(msg.blockedSites)) {
-        sendResponse({ success: false, error: "Invalid blockedSites array" });
-        return true;
-      }
-
-      chrome.storage.sync.set({ blockedSites: msg.blockedSites }, () => {
-        if (chrome.runtime.lastError) {
-          sendResponse({
-            success: false,
-            error: chrome.runtime.lastError.message,
-          });
-        } else {
-          sendResponse({ success: true });
-        }
-      });
-      return true;
-
-    default:
-      sendResponse({ success: false, error: "Unknown message type" });
-      return true;
-  }
+  return true;
 });
+
+async function updateDeclarativeRules(blockedSites: string[]) {
+  try {
+    const existingRules = await chrome.declarativeNetRequest.getDynamicRules();
+    const existingIds = existingRules.map((r) => r.id);
+    const rules: chrome.declarativeNetRequest.Rule[] = blockedSites.map(
+      (site, i) => ({
+        id: i + 1,
+        priority: 1,
+        action: {
+          type: chrome.declarativeNetRequest.RuleActionType.REDIRECT,
+          redirect: { url: `${DASHBOARD_URL}/blocked` },
+        },
+        condition: {
+          urlFilter: `*${site}*`,
+          resourceTypes: ["main_frame"],
+        },
+      }),
+    );
+    await chrome.declarativeNetRequest.updateDynamicRules({
+      removeRuleIds: existingIds,
+      addRules: rules,
+    });
+  } catch (err) {
+    console.error("Failed to update DNR rules:", err);
+  }
+}
 
 function extractDomain(url: string): string | null {
   try {
@@ -114,42 +117,16 @@ function extractDomain(url: string): string | null {
   }
 }
 
-function isBlocked(url: string, blockedSites: string[]): boolean {
-  try {
-    const { hostname } = new URL(url);
-    const normalized = hostname.replace(/^www\./, "").toLowerCase();
-
-    return blockedSites.some((blocked) => {
-      const cleanBlocked = blocked.toLowerCase();
-      return (
-        normalized === cleanBlocked ||
-        normalized.endsWith(`.${cleanBlocked}`) ||
-        normalized.split(".")[0] === cleanBlocked
-      );
-    });
-  } catch {
-    return false;
+chrome.runtime.onStartup.addListener(async () => {
+  const { blockedSites } = await chrome.storage.sync.get("blockedSites");
+  if (blockedSites && blockedSites.length > 0) {
+    await updateDeclarativeRules(blockedSites);
   }
-}
-
-function handleBlockCheck(tabId: number, url?: string) {
-  if (!url || url.startsWith(DASHBOARD_URL)) return;
-
-  chrome.storage.sync.get("blockedSites", (data) => {
-    const blockedSites = data.blockedSites || [];
-    if (isBlocked(url, blockedSites)) {
-      chrome.tabs.update(tabId, { url: DASHBOARD_URL });
-    }
-  });
-}
-
-chrome.tabs.onActivated.addListener(async (activeInfo) => {
-  const tab = await chrome.tabs.get(activeInfo.tabId);
-  handleBlockCheck(activeInfo.tabId, tab.url);
 });
 
-chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
-  if (changeInfo.status === "complete" && tab.url) {
-    handleBlockCheck(tabId, tab.url);
+chrome.runtime.onInstalled.addListener(async () => {
+  const { blockedSites } = await chrome.storage.sync.get("blockedSites");
+  if (blockedSites && blockedSites.length > 0) {
+    await updateDeclarativeRules(blockedSites);
   }
 });
