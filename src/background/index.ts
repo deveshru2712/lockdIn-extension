@@ -1,5 +1,7 @@
 import { sendTokenToDashboard } from "./sendTokenToDashboard";
 
+const DASHBOARD_URL = "http://localhost:3000";
+
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   (async () => {
     try {
@@ -30,12 +32,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         }
 
         default: {
-          console.warn("⚠️ Unknown internal message type:", message?.type);
           sendResponse({ success: false, error: "Unknown message type" });
         }
       }
     } catch (err) {
-      console.error("❌ Background internal handler error:", err);
       sendResponse({ success: false, error: String(err) });
     }
   })();
@@ -46,7 +46,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 chrome.runtime.onMessageExternal.addListener((msg, sender, sendResponse) => {
   const allowedOrigins = ["http://localhost:3000", "http://127.0.0.1:3000"];
   if (!allowedOrigins.includes(sender.origin || "")) {
-    console.warn("🚫 Unauthorized external message from:", sender.origin);
     sendResponse({ success: false, error: "Origin not allowed" });
     return true;
   }
@@ -64,7 +63,6 @@ chrome.runtime.onMessageExternal.addListener((msg, sender, sendResponse) => {
             error: chrome.runtime.lastError.message,
           });
         } else {
-          console.log("✅ Token saved from dashboard");
           sendResponse({ success: true });
         }
       });
@@ -78,7 +76,6 @@ chrome.runtime.onMessageExternal.addListener((msg, sender, sendResponse) => {
             error: chrome.runtime.lastError.message,
           });
         } else {
-          console.log("🗑️ Token deleted successfully");
           sendResponse({ success: true });
         }
       });
@@ -97,7 +94,6 @@ chrome.runtime.onMessageExternal.addListener((msg, sender, sendResponse) => {
             error: chrome.runtime.lastError.message,
           });
         } else {
-          console.log("🚫 Blocked sites updated:", msg.blockedSites);
           sendResponse({ success: true });
         }
       });
@@ -109,25 +105,31 @@ chrome.runtime.onMessageExternal.addListener((msg, sender, sendResponse) => {
   }
 });
 
-const DASHBOARD_URL = "http://localhost:3000";
-
 function extractDomain(url: string): string | null {
   try {
     const { hostname } = new URL(url);
-    const parts = hostname.split(".");
-    return parts.length > 2 ? parts.slice(-2).join(".") : hostname;
+    return hostname.replace(/^www\./, "").toLowerCase();
   } catch {
     return null;
   }
 }
 
-// blocker function
 function isBlocked(url: string, blockedSites: string[]): boolean {
-  const domain = extractDomain(url);
-  if (!domain) return false;
-  return blockedSites.some(
-    (blocked) => domain === blocked || domain.endsWith(blocked),
-  );
+  try {
+    const { hostname } = new URL(url);
+    const normalized = hostname.replace(/^www\./, "").toLowerCase();
+
+    return blockedSites.some((blocked) => {
+      const cleanBlocked = blocked.toLowerCase();
+      return (
+        normalized === cleanBlocked ||
+        normalized.endsWith(`.${cleanBlocked}`) ||
+        normalized.split(".")[0] === cleanBlocked
+      );
+    });
+  } catch {
+    return false;
+  }
 }
 
 function handleBlockCheck(tabId: number, url?: string) {
@@ -136,7 +138,6 @@ function handleBlockCheck(tabId: number, url?: string) {
   chrome.storage.sync.get("blockedSites", (data) => {
     const blockedSites = data.blockedSites || [];
     if (isBlocked(url, blockedSites)) {
-      console.log("🚫 Blocking domain:", extractDomain(url));
       chrome.tabs.update(tabId, { url: DASHBOARD_URL });
     }
   });
