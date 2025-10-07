@@ -130,3 +130,20 @@ chrome.runtime.onInstalled.addListener(async () => {
     await updateDeclarativeRules(blockedSites);
   }
 });
+
+chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
+  if (changeInfo.status === "loading" && tab.url?.includes("/blocked")) {
+    try {
+      const blockedTabs = await chrome.tabs.query({
+        url: ["http://localhost:3000/blocked", "http://127.0.0.1:3000/blocked"],
+      });
+
+      if (blockedTabs.length > 1) {
+        await chrome.tabs.update(blockedTabs[0].id!, { active: true });
+        await chrome.tabs.remove(tabId);
+      }
+    } catch (err) {
+      console.error("Error handling duplicate /blocked tabs:", err);
+    }
+  }
+});
