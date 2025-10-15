@@ -153,7 +153,7 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
         url: ["http://localhost:3000/blocked", "http://127.0.0.1:3000/blocked"],
       });
 
-      if (blockedTabs.length > 1) {
+      if (blockedTabs.length >= 1) {
         await chrome.tabs.update(blockedTabs[0].id!, { active: true });
         await chrome.tabs.remove(tabId);
       }
