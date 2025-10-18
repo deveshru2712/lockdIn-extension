@@ -88,6 +88,19 @@ chrome.runtime.onMessageExternal.addListener((msg, sender, sendResponse) => {
         sendResponse({ success: true });
         break;
 
+      case "UPDATE_SESSION_BLOCKED_SITES":
+        if (!Array.isArray(msg.sessionBlockedSites)) {
+          sendResponse({
+            success: false,
+            error: "Invalid session blocked array",
+          });
+        }
+        await chrome.storage.sync.set({
+          sessionBlockedSites: msg.sessionBlockedSites,
+        });
+        sendResponse({ success: true });
+        break;
+
       default:
         sendResponse({ success: false, error: "Unknown message type" });
     }
@@ -134,7 +147,13 @@ function extractDomain(url: string): string | null {
 
 chrome.runtime.onStartup.addListener(async () => {
   const { blockedSites } = await chrome.storage.sync.get("blockedSites");
+  const { sessionBlockedUrl } = await chrome.storage.sync.get(
+    "session-blocked-sites",
+  );
   if (blockedSites && blockedSites.length > 0) {
+    await updateDeclarativeRules(blockedSites);
+  }
+  if (sessionBlockedUrl && sessionBlockedUrl.length > 0) {
     await updateDeclarativeRules(blockedSites);
   }
 });
