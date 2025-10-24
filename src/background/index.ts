@@ -63,46 +63,55 @@ chrome.runtime.onMessageExternal.addListener((msg, sender, sendResponse) => {
   }
 
   (async () => {
-    switch (msg.type) {
-      case "PING":
-        sendResponse({ pong: true });
-        break;
+    try {
+      switch (msg.type) {
+        case "PING":
+          sendResponse({ pong: true });
+          break;
 
-      case "SAVE_TOKEN":
-        await chrome.storage.sync.set({ token: msg.token });
-        sendResponse({ success: true });
-        break;
+        case "SAVE_TOKEN":
+          await chrome.storage.sync.set({ token: msg.token });
+          sendResponse({ success: true });
+          break;
 
-      case "DELETE_TOKEN":
-        await chrome.storage.sync.remove("token");
-        sendResponse({ success: true });
-        break;
+        case "DELETE_TOKEN":
+          await chrome.storage.sync.remove("token");
+          sendResponse({ success: true });
+          break;
 
-      case "UPDATE_BLOCKED_SITES":
-        if (!Array.isArray(msg.blockedSites)) {
-          sendResponse({ success: false, error: "Invalid blockedSites array" });
-          return;
-        }
-        await chrome.storage.sync.set({ blockedSites: msg.blockedSites });
-        await updateDeclarativeRules(msg.blockedSites);
-        sendResponse({ success: true });
-        break;
+        case "UPDATE_BLOCKED_SITES":
+          if (!Array.isArray(msg.blockedSites)) {
+            sendResponse({
+              success: false,
+              error: "Invalid blockedSites array",
+            });
+            return;
+          }
+          await chrome.storage.sync.set({ blockedSites: msg.blockedSites });
+          await updateDeclarativeRules(msg.blockedSites);
+          sendResponse({ success: true });
+          break;
 
-      case "UPDATE_SESSION_BLOCKED_SITES":
-        if (!Array.isArray(msg.sessionBlockedSites)) {
-          sendResponse({
-            success: false,
-            error: "Invalid session blocked array",
+        case "UPDATE_SESSION_BLOCKED_SITES":
+          if (!Array.isArray(msg.sessionBlockedSites)) {
+            sendResponse({
+              success: false,
+              error: "Invalid sessionBlockedSites array",
+            });
+            return;
+          }
+          await chrome.storage.sync.set({
+            sessionBlockedSites: msg.sessionBlockedSites,
           });
-        }
-        await chrome.storage.sync.set({
-          sessionBlockedSites: msg.sessionBlockedSites,
-        });
-        sendResponse({ success: true });
-        break;
+          console.log(msg.sessionBlockedSites);
+          sendResponse({ success: true });
+          break;
 
-      default:
-        sendResponse({ success: false, error: "Unknown message type" });
+        default:
+          sendResponse({ success: false, error: "Unknown message type" });
+      }
+    } catch (err) {
+      sendResponse({ success: false, error: String(err) });
     }
   })();
 
@@ -113,7 +122,12 @@ async function updateDeclarativeRules(blockedSites: string[]) {
   try {
     const existingRules = await chrome.declarativeNetRequest.getDynamicRules();
     const existingIds = existingRules.map((r) => r.id);
-    const rules: chrome.declarativeNetRequest.Rule[] = blockedSites.map(
+
+    const safeFiltered = blockedSites.filter(
+      (site) => !SAFE_HOSTS.some((safe) => site.includes(safe)),
+    );
+
+    const rules: chrome.declarativeNetRequest.Rule[] = safeFiltered.map(
       (site, i) => ({
         id: i + 1,
         priority: 1,
@@ -127,6 +141,7 @@ async function updateDeclarativeRules(blockedSites: string[]) {
         },
       }),
     );
+
     await chrome.declarativeNetRequest.updateDynamicRules({
       removeRuleIds: existingIds,
       addRules: rules,
@@ -146,23 +161,19 @@ function extractDomain(url: string): string | null {
 }
 
 chrome.runtime.onStartup.addListener(async () => {
-  const { blockedSites } = await chrome.storage.sync.get("blockedSites");
-  const { sessionBlockedUrl } = await chrome.storage.sync.get(
-    "session-blocked-sites",
+  const { blockedSites = [] } = await chrome.storage.sync.get("blockedSites");
+  const { sessionBlockedSites = [] } = await chrome.storage.sync.get(
+    "sessionBlockedSites",
   );
-  if (blockedSites && blockedSites.length > 0) {
-    await updateDeclarativeRules(blockedSites);
-  }
-  if (sessionBlockedUrl && sessionBlockedUrl.length > 0) {
-    await updateDeclarativeRules(blockedSites);
-  }
+
+  if (blockedSites.length > 0) await updateDeclarativeRules(blockedSites);
+  if (sessionBlockedSites.length > 0)
+    await updateDeclarativeRules(sessionBlockedSites);
 });
 
 chrome.runtime.onInstalled.addListener(async () => {
-  const { blockedSites } = await chrome.storage.sync.get("blockedSites");
-  if (blockedSites && blockedSites.length > 0) {
-    await updateDeclarativeRules(blockedSites);
-  }
+  const { blockedSites = [] } = await chrome.storage.sync.get("blockedSites");
+  if (blockedSites.length > 0) await updateDeclarativeRules(blockedSites);
 });
 
 chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
@@ -172,7 +183,7 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
         url: ["http://localhost:3000/blocked", "http://127.0.0.1:3000/blocked"],
       });
 
-      if (blockedTabs.length >= 1) {
+      if (blockedTabs.length > 1) {
         await chrome.tabs.update(blockedTabs[0].id!, { active: true });
         await chrome.tabs.remove(tabId);
       }
