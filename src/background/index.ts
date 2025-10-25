@@ -8,7 +8,7 @@ const SAFE_HOSTS: string[] = [
   "127.0.0.1:3000",
 ];
 
-chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   (async () => {
     try {
       switch (message.type) {
@@ -69,16 +69,6 @@ chrome.runtime.onMessageExternal.addListener((msg, sender, sendResponse) => {
           sendResponse({ pong: true });
           break;
 
-        case "SAVE_TOKEN":
-          await chrome.storage.sync.set({ token: msg.token });
-          sendResponse({ success: true });
-          break;
-
-        case "DELETE_TOKEN":
-          await chrome.storage.sync.remove("token");
-          sendResponse({ success: true });
-          break;
-
         case "UPDATE_BLOCKED_SITES":
           if (!Array.isArray(msg.blockedSites)) {
             sendResponse({
@@ -88,7 +78,7 @@ chrome.runtime.onMessageExternal.addListener((msg, sender, sendResponse) => {
             return;
           }
           await chrome.storage.sync.set({ blockedSites: msg.blockedSites });
-          await updateDeclarativeRules(msg.blockedSites);
+          await updateDeclarativeRules();
           sendResponse({ success: true });
           break;
 
@@ -103,7 +93,7 @@ chrome.runtime.onMessageExternal.addListener((msg, sender, sendResponse) => {
           await chrome.storage.sync.set({
             sessionBlockedSites: msg.sessionBlockedSites,
           });
-          console.log(msg.sessionBlockedSites);
+          await updateDeclarativeRules();
           sendResponse({ success: true });
           break;
 
@@ -114,16 +104,18 @@ chrome.runtime.onMessageExternal.addListener((msg, sender, sendResponse) => {
       sendResponse({ success: false, error: String(err) });
     }
   })();
-
   return true;
 });
 
-async function updateDeclarativeRules(blockedSites: string[]) {
+async function updateDeclarativeRules() {
   try {
-    const existingRules = await chrome.declarativeNetRequest.getDynamicRules();
-    const existingIds = existingRules.map((r) => r.id);
+    const { blockedSites = [] } = await chrome.storage.sync.get("blockedSites");
+    const { sessionBlockedSites = [] } = await chrome.storage.sync.get(
+      "sessionBlockedSites",
+    );
 
-    const safeFiltered = blockedSites.filter(
+    const allSites = [...new Set([...blockedSites, ...sessionBlockedSites])];
+    const safeFiltered = allSites.filter(
       (site) => !SAFE_HOSTS.some((safe) => site.includes(safe)),
     );
 
@@ -141,6 +133,9 @@ async function updateDeclarativeRules(blockedSites: string[]) {
         },
       }),
     );
+
+    const existingRules = await chrome.declarativeNetRequest.getDynamicRules();
+    const existingIds = existingRules.map((r) => r.id);
 
     await chrome.declarativeNetRequest.updateDynamicRules({
       removeRuleIds: existingIds,
@@ -165,15 +160,17 @@ chrome.runtime.onStartup.addListener(async () => {
   const { sessionBlockedSites = [] } = await chrome.storage.sync.get(
     "sessionBlockedSites",
   );
-
-  if (blockedSites.length > 0) await updateDeclarativeRules(blockedSites);
-  if (sessionBlockedSites.length > 0)
-    await updateDeclarativeRules(sessionBlockedSites);
+  if (blockedSites.length > 0 || sessionBlockedSites.length > 0)
+    await updateDeclarativeRules();
 });
 
 chrome.runtime.onInstalled.addListener(async () => {
   const { blockedSites = [] } = await chrome.storage.sync.get("blockedSites");
-  if (blockedSites.length > 0) await updateDeclarativeRules(blockedSites);
+  const { sessionBlockedSites = [] } = await chrome.storage.sync.get(
+    "sessionBlockedSites",
+  );
+  if (blockedSites.length > 0 || sessionBlockedSites.length > 0)
+    await updateDeclarativeRules();
 });
 
 chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
@@ -182,7 +179,6 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
       const blockedTabs = await chrome.tabs.query({
         url: ["http://localhost:3000/blocked", "http://127.0.0.1:3000/blocked"],
       });
-
       if (blockedTabs.length > 1) {
         await chrome.tabs.update(blockedTabs[0].id!, { active: true });
         await chrome.tabs.remove(tabId);
