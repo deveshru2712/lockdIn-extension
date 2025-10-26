@@ -1,62 +1,20 @@
-import { sendTokenToDashboard } from "./sendTokenToDashboard";
-
-const DASHBOARD_URL = "http://localhost:3000";
+const DASHBOARD_URL = "https://www.lockdin.in";
 const SAFE_HOSTS: string[] = [
   "localhost",
   "127.0.0.1",
   "localhost:3000",
   "127.0.0.1:3000",
+  "lockdin.in",
+  "www.lockdin.in",
 ];
 
-chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
-  (async () => {
-    try {
-      switch (message.type) {
-        case "ADD_SITE": {
-          const domain = extractDomain(message.site);
-          if (!domain) {
-            sendResponse({ success: false, error: "Invalid URL" });
-            break;
-          }
-
-          if (SAFE_HOSTS.some((safe) => domain.includes(safe))) {
-            sendResponse({
-              success: false,
-              error: "Cannot block localhost or dashboard",
-            });
-            break;
-          }
-
-          const result = await sendTokenToDashboard({
-            action: "ADD_SITE",
-            site: domain,
-          });
-          sendResponse(result);
-          break;
-        }
-
-        case "GET_CURRENT_TAB": {
-          const tabs = await chrome.tabs.query({
-            active: true,
-            currentWindow: true,
-          });
-          const tab = tabs[0];
-          sendResponse({ url: tab?.url || "" });
-          break;
-        }
-
-        default:
-          sendResponse({ success: false, error: "Unknown message type" });
-      }
-    } catch (err) {
-      sendResponse({ success: false, error: String(err) });
-    }
-  })();
-  return true;
-});
-
 chrome.runtime.onMessageExternal.addListener((msg, sender, sendResponse) => {
-  const allowedOrigins = ["http://localhost:3000", "http://127.0.0.1:3000"];
+  const allowedOrigins = [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "https://www.lockdin.in",
+  ];
+
   if (!allowedOrigins.includes(sender.origin || "")) {
     sendResponse({ success: false, error: "Origin not allowed" });
     return true;
@@ -146,15 +104,6 @@ async function updateDeclarativeRules() {
   }
 }
 
-function extractDomain(url: string): string | null {
-  try {
-    const { hostname } = new URL(url);
-    return hostname.replace(/^www\./, "").toLowerCase();
-  } catch {
-    return null;
-  }
-}
-
 chrome.runtime.onStartup.addListener(async () => {
   const { blockedSites = [] } = await chrome.storage.sync.get("blockedSites");
   const { sessionBlockedSites = [] } = await chrome.storage.sync.get(
@@ -177,7 +126,11 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
   if (changeInfo.status === "loading" && tab.url?.includes("/blocked")) {
     try {
       const blockedTabs = await chrome.tabs.query({
-        url: ["http://localhost:3000/blocked", "http://127.0.0.1:3000/blocked"],
+        url: [
+          `${DASHBOARD_URL}/blocked`,
+          "http://localhost:3000/blocked",
+          "http://127.0.0.1:3000/blocked",
+        ],
       });
       if (blockedTabs.length > 1) {
         await chrome.tabs.update(blockedTabs[0].id!, { active: true });

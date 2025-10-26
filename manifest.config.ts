@@ -1,6 +1,12 @@
 import { defineManifest } from "@crxjs/vite-plugin";
 import pkg from "./package.json";
 
+const DASHBOARD_URLS = [
+  "http://localhost:3000/*",
+  "http://127.0.0.1:3000/*",
+  "https://www.lockdin.in/*",
+];
+
 export default defineManifest({
   manifest_version: 3,
   name: pkg.name,
@@ -35,19 +41,14 @@ export default defineManifest({
 
   content_scripts: [
     {
-      js: ["src/content/injectFlag.ts"],
-      matches: ["http://localhost:3000/*"],
+      js: ["src/popup/injectFlag.ts"],
+      matches: DASHBOARD_URLS,
       run_at: "document_start",
-    },
-    {
-      js: ["src/content/main.tsx"],
-      matches: ["https://*/*", "http://*/*"],
-      run_at: "document_idle",
     },
   ],
 
   externally_connectable: {
-    matches: ["http://localhost:3000/*", "http://127.0.0.1:3000/*"],
+    matches: DASHBOARD_URLS,
   },
 
   web_accessible_resources: [
@@ -56,8 +57,4 @@ export default defineManifest({
       matches: ["<all_urls>"],
     },
   ],
-
-  declarative_net_request: {
-    rule_resources: [],
-  },
 });
