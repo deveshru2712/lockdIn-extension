@@ -62,6 +62,7 @@ chrome.runtime.onMessageExternal.addListener((msg, sender, sendResponse) => {
       sendResponse({ success: false, error: String(err) });
     }
   })();
+
   return true;
 });
 
@@ -73,24 +74,33 @@ async function updateDeclarativeRules() {
     );
 
     const allSites = [...new Set([...blockedSites, ...sessionBlockedSites])];
-    const safeFiltered = allSites.filter(
+    const filteredSites = allSites.filter(
       (site) => !SAFE_HOSTS.some((safe) => site.includes(safe)),
     );
 
-    const rules: chrome.declarativeNetRequest.Rule[] = safeFiltered.map(
-      (site, i) => ({
-        id: i + 1,
-        priority: 1,
+    const rules: chrome.declarativeNetRequest.Rule[] = [];
+    let ruleId = 1;
+
+    filteredSites.forEach((site) => {
+      let sitePattern = site.trim().toLowerCase();
+      if (!sitePattern.includes(".")) sitePattern = `${sitePattern}.com`;
+
+      // Use requestDomains for more reliable domain blocking
+      rules.push({
+        id: ruleId++,
+        priority: 999,
         action: {
           type: chrome.declarativeNetRequest.RuleActionType.REDIRECT,
-          redirect: { url: `${DASHBOARD_URL}/blocked` },
+          redirect: {
+            url: `${DASHBOARD_URL}/blocked?from=${encodeURIComponent(sitePattern)}`,
+          },
         },
         condition: {
-          urlFilter: `*${site}*`,
-          resourceTypes: ["main_frame"],
+          requestDomains: [sitePattern, `www.${sitePattern}`],
+          resourceTypes: [chrome.declarativeNetRequest.ResourceType.MAIN_FRAME],
         },
-      }),
-    );
+      });
+    });
 
     const existingRules = await chrome.declarativeNetRequest.getDynamicRules();
     const existingIds = existingRules.map((r) => r.id);
@@ -99,29 +109,19 @@ async function updateDeclarativeRules() {
       removeRuleIds: existingIds,
       addRules: rules,
     });
+
+    console.log(
+      `✅ Updated DNR rules: ${rules.length} total (${filteredSites.length} sites)`,
+    );
   } catch (err) {
-    console.error("Failed to update DNR rules:", err);
+    console.error("❌ Failed to update DNR rules:", err);
   }
 }
 
-chrome.runtime.onStartup.addListener(async () => {
-  const { blockedSites = [] } = await chrome.storage.sync.get("blockedSites");
-  const { sessionBlockedSites = [] } = await chrome.storage.sync.get(
-    "sessionBlockedSites",
-  );
-  if (blockedSites.length > 0 || sessionBlockedSites.length > 0)
-    await updateDeclarativeRules();
-});
+chrome.runtime.onStartup.addListener(updateDeclarativeRules);
+chrome.runtime.onInstalled.addListener(updateDeclarativeRules);
 
-chrome.runtime.onInstalled.addListener(async () => {
-  const { blockedSites = [] } = await chrome.storage.sync.get("blockedSites");
-  const { sessionBlockedSites = [] } = await chrome.storage.sync.get(
-    "sessionBlockedSites",
-  );
-  if (blockedSites.length > 0 || sessionBlockedSites.length > 0)
-    await updateDeclarativeRules();
-});
-
+// Prevent duplicate /blocked tabs
 chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
   if (changeInfo.status === "loading" && tab.url?.includes("/blocked")) {
     try {

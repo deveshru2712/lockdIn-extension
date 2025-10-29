@@ -45,6 +45,12 @@ export default defineManifest({
       matches: DASHBOARD_URLS,
       run_at: "document_start",
     },
+    {
+      js: ["src/content/blockPage.ts"],
+      matches: ["<all_urls>"],
+      run_at: "document_start",
+      all_frames: false,
+    },
   ],
 
   externally_connectable: {
