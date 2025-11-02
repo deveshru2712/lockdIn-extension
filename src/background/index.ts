@@ -1,19 +1,23 @@
 const DASHBOARD_URL = "https://www.lockdin.in";
-const SAFE_HOSTS: string[] = [
-  "localhost",
-  "127.0.0.1",
-  "localhost:3000",
-  "127.0.0.1:3000",
-  "lockdin.in",
-  "www.lockdin.in",
-];
+// const SAFE_HOSTS: string[] = [
+//   "localhost",
+//   "127.0.0.1",
+//   "localhost:3000",
+//   "127.0.0.1:3000",
+//   "lockdin.in",
+//   "www.lockdin.in",
+// ];
+
+const SAFE_HOSTS: string[] = ["lockdin.in", "www.lockdin.in"];
 
 chrome.runtime.onMessageExternal.addListener((msg, sender, sendResponse) => {
-  const allowedOrigins = [
-    "http://localhost:3000",
-    "http://127.0.0.1:3000",
-    "https://www.lockdin.in",
-  ];
+  // const allowedOrigins = [
+  //   "http://localhost:3000",
+  //   "http://127.0.0.1:3000",
+  //   "https://www.lockdin.in",
+  // ];
+
+  const allowedOrigins = ["https://www.lockdin.in"];
 
   if (!allowedOrigins.includes(sender.origin || "")) {
     sendResponse({ success: false, error: "Origin not allowed" });
@@ -128,8 +132,8 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
       const blockedTabs = await chrome.tabs.query({
         url: [
           `${DASHBOARD_URL}/blocked`,
-          "http://localhost:3000/blocked",
-          "http://127.0.0.1:3000/blocked",
+          // "http://localhost:3000/blocked",
+          // "http://127.0.0.1:3000/blocked",
         ],
       });
       if (blockedTabs.length > 1) {
