@@ -1,23 +1,22 @@
-const DASHBOARD_URL = "https://www.lockdin.in";
-// const SAFE_HOSTS: string[] = [
-//   "localhost",
-//   "127.0.0.1",
-//   "localhost:3000",
-//   "127.0.0.1:3000",
-//   "lockdin.in",
-//   "www.lockdin.in",
-// ];
+const DASHBOARD_URLS = [
+  "https://www.lockdin.in",
+  // "http://localhost:3000",
+  // "http://127.0.0.1:3000",
+];
 
-const SAFE_HOSTS: string[] = ["lockdin.in", "www.lockdin.in"];
+const MAIN_DASHBOARD = DASHBOARD_URLS[0];
+
+const SAFE_HOSTS: string[] = [
+  // "localhost",
+  // "127.0.0.1",
+  // "localhost:3000",
+  // "127.0.0.1:3000",
+  "lockdin.in",
+  "www.lockdin.in",
+];
 
 chrome.runtime.onMessageExternal.addListener((msg, sender, sendResponse) => {
-  // const allowedOrigins = [
-  //   "http://localhost:3000",
-  //   "http://127.0.0.1:3000",
-  //   "https://www.lockdin.in",
-  // ];
-
-  const allowedOrigins = ["https://www.lockdin.in"];
+  const allowedOrigins = DASHBOARD_URLS.map((u) => u.replace(/\/$/, ""));
 
   if (!allowedOrigins.includes(sender.origin || "")) {
     sendResponse({ success: false, error: "Origin not allowed" });
@@ -78,29 +77,29 @@ async function updateDeclarativeRules() {
     );
 
     const allSites = [...new Set([...blockedSites, ...sessionBlockedSites])];
+
     const filteredSites = allSites.filter(
       (site) => !SAFE_HOSTS.some((safe) => site.includes(safe)),
     );
 
     const rules: chrome.declarativeNetRequest.Rule[] = [];
-    let ruleId = 1;
+    let id = 1;
 
     filteredSites.forEach((site) => {
-      let sitePattern = site.trim().toLowerCase();
-      if (!sitePattern.includes(".")) sitePattern = `${sitePattern}.com`;
+      let s = site.trim().toLowerCase();
+      if (!s.includes(".")) s = `${s}.com`;
 
-      // Use requestDomains for more reliable domain blocking
       rules.push({
-        id: ruleId++,
+        id: id++,
         priority: 999,
         action: {
           type: chrome.declarativeNetRequest.RuleActionType.REDIRECT,
           redirect: {
-            url: `${DASHBOARD_URL}/blocked?from=${encodeURIComponent(sitePattern)}`,
+            url: `${MAIN_DASHBOARD}/blocked?from=${encodeURIComponent(s)}`,
           },
         },
         condition: {
-          requestDomains: [sitePattern, `www.${sitePattern}`],
+          requestDomains: [s, `www.${s}`],
           resourceTypes: [chrome.declarativeNetRequest.ResourceType.MAIN_FRAME],
         },
       });
@@ -113,35 +112,22 @@ async function updateDeclarativeRules() {
       removeRuleIds: existingIds,
       addRules: rules,
     });
-
-    console.log(
-      `✅ Updated DNR rules: ${rules.length} total (${filteredSites.length} sites)`,
-    );
-  } catch (err) {
-    console.error("❌ Failed to update DNR rules:", err);
-  }
+  } catch (err) {}
 }
 
 chrome.runtime.onStartup.addListener(updateDeclarativeRules);
 chrome.runtime.onInstalled.addListener(updateDeclarativeRules);
 
-// Prevent duplicate /blocked tabs
 chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
   if (changeInfo.status === "loading" && tab.url?.includes("/blocked")) {
     try {
       const blockedTabs = await chrome.tabs.query({
-        url: [
-          `${DASHBOARD_URL}/blocked`,
-          // "http://localhost:3000/blocked",
-          // "http://127.0.0.1:3000/blocked",
-        ],
+        url: DASHBOARD_URLS.map((u) => `${u}/blocked`),
       });
       if (blockedTabs.length > 1) {
         await chrome.tabs.update(blockedTabs[0].id!, { active: true });
         await chrome.tabs.remove(tabId);
       }
-    } catch (err) {
-      console.error("Error handling duplicate /blocked tabs:", err);
-    }
+    } catch (err) {}
   }
 });

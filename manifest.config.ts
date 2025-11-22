@@ -1,13 +1,11 @@
 import { defineManifest } from "@crxjs/vite-plugin";
 import pkg from "./package.json";
 
-// const DASHBOARD_URLS = [
-//   "http://localhost:3000/*",
-//   "http://127.0.0.1:3000/*",
-//   "https://www.lockdin.in/*",
-// ];
-
-const DASHBOARD_URLS = ["https://www.lockdin.in/*"];
+const DASHBOARD_URLS = [
+  // "http://localhost:3000/*",
+  // "http://127.0.0.1:3000/*",
+  "https://www.lockdin.in/*",
+];
 
 export default defineManifest({
   manifest_version: 3,

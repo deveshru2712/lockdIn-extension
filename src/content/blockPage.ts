@@ -1,4 +1,13 @@
-const DASHBOARD_URL = "https://www.lockdin.in";
+const DASHBOARD_URL = [
+  "https://www.lockdin.in",
+  //  "http://localhost:3000"
+];
+
+// Automatically choose correct dashboard URL
+function getDashboardUrl() {
+  const isLocal = window.location.hostname.includes("localhost");
+  return isLocal ? DASHBOARD_URL[1] : DASHBOARD_URL[0];
+}
 
 async function checkAndRedirect() {
   try {
@@ -8,18 +17,25 @@ async function checkAndRedirect() {
     );
 
     const allSites = [...new Set([...blockedSites, ...sessionBlockedSites])];
-    const currentHost = window.location.hostname.replace("www.", "");
+    const currentHost = window.location.hostname
+      .replace("www.", "")
+      .toLowerCase();
 
     const isBlocked = allSites.some((site) => {
       let sitePattern = site.trim().toLowerCase().replace("www.", "");
+
+      // Allow "instagram" to match as "instagram.com"
       if (!sitePattern.includes(".")) sitePattern = `${sitePattern}.com`;
+
       return (
         currentHost === sitePattern || currentHost.endsWith(`.${sitePattern}`)
       );
     });
 
     if (isBlocked) {
-      const redirectUrl = `${DASHBOARD_URL}/blocked?from=${encodeURIComponent(currentHost)}`;
+      const redirectUrl = `${getDashboardUrl()}/blocked?from=${encodeURIComponent(
+        currentHost,
+      )}`;
       window.location.replace(redirectUrl);
     }
   } catch (err) {
@@ -27,22 +43,20 @@ async function checkAndRedirect() {
   }
 }
 
-// Check on load
+// Initial check
 checkAndRedirect();
 
-// Check on history changes (for SPA navigation)
+// Patch history for SPA sites
 const originalPushState = history.pushState;
-const originalReplaceState = history.replaceState;
-
 history.pushState = function (...args) {
   originalPushState.apply(this, args);
   checkAndRedirect();
 };
 
+const originalReplaceState = history.replaceState;
 history.replaceState = function (...args) {
   originalReplaceState.apply(this, args);
   checkAndRedirect();
 };
 
-// Also listen for popstate (back/forward buttons)
 window.addEventListener("popstate", checkAndRedirect);
