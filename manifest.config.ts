@@ -2,8 +2,12 @@ import { defineManifest } from "@crxjs/vite-plugin";
 import pkg from "./package.json";
 
 const DASHBOARD_URLS = [
+  // Local development (uncomment when needed)
   // "http://localhost:3000/*",
   // "http://127.0.0.1:3000/*",
+
+  // Production domains
+  "https://lockdin.in/*",
   "https://www.lockdin.in/*",
 ];
 
@@ -32,7 +36,7 @@ export default defineManifest({
     "declarativeNetRequestWithHostAccess",
   ],
 
-  host_permissions: ["<all_urls>"],
+  host_permissions: ["https://lockdin.in/*", "https://www.lockdin.in/*"],
 
   background: {
     service_worker: "src/background/index.ts",
@@ -41,9 +45,10 @@ export default defineManifest({
 
   content_scripts: [
     {
-      js: ["src/popup/injectFlag.ts"],
+      js: ["src/content/injectFlag.ts"],
       matches: DASHBOARD_URLS,
       run_at: "document_start",
+      all_frames: true,
     },
     {
       js: ["src/content/blockPage.ts"],
@@ -54,7 +59,7 @@ export default defineManifest({
   ],
 
   externally_connectable: {
-    matches: DASHBOARD_URLS,
+    matches: ["https://lockdin.in/*", "https://www.lockdin.in/*"],
   },
 
   web_accessible_resources: [

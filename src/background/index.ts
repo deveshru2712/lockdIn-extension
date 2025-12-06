@@ -1,25 +1,18 @@
-const DASHBOARD_URLS = [
-  "https://www.lockdin.in",
-  // "http://localhost:3000",
-  // "http://127.0.0.1:3000",
-];
+const DASHBOARD_URLS = ["https://lockdin.in", "https://www.lockdin.in"];
 
-const MAIN_DASHBOARD = DASHBOARD_URLS[0];
+function normalizeOrigin(url: string) {
+  return url.replace("/*", "").replace(/\/$/, "");
+}
 
-const SAFE_HOSTS: string[] = [
-  // "localhost",
-  // "127.0.0.1",
-  // "localhost:3000",
-  // "127.0.0.1:3000",
-  "lockdin.in",
-  "www.lockdin.in",
-];
+const ALLOWED_ORIGINS = DASHBOARD_URLS.map(normalizeOrigin);
+const MAIN_DASHBOARD = normalizeOrigin("https://lockdin.in");
+const SAFE_HOSTS: string[] = ["localhost", "lockdin.in", "www.lockdin.in"];
 
 chrome.runtime.onMessageExternal.addListener((msg, sender, sendResponse) => {
-  const allowedOrigins = DASHBOARD_URLS.map((u) => u.replace(/\/$/, ""));
+  const origin = sender.origin || null;
 
-  if (!allowedOrigins.includes(sender.origin || "")) {
-    sendResponse({ success: false, error: "Origin not allowed" });
+  if (origin && !ALLOWED_ORIGINS.includes(origin)) {
+    sendResponse({ success: false, error: "Origin not allowed", origin });
     return true;
   }
 
@@ -32,10 +25,7 @@ chrome.runtime.onMessageExternal.addListener((msg, sender, sendResponse) => {
 
         case "UPDATE_BLOCKED_SITES":
           if (!Array.isArray(msg.blockedSites)) {
-            sendResponse({
-              success: false,
-              error: "Invalid blockedSites array",
-            });
+            sendResponse({ success: false, error: "Invalid blockedSites" });
             return;
           }
           await chrome.storage.sync.set({ blockedSites: msg.blockedSites });
@@ -47,7 +37,7 @@ chrome.runtime.onMessageExternal.addListener((msg, sender, sendResponse) => {
           if (!Array.isArray(msg.sessionBlockedSites)) {
             sendResponse({
               success: false,
-              error: "Invalid sessionBlockedSites array",
+              error: "Invalid sessionBlockedSites",
             });
             return;
           }
@@ -112,7 +102,7 @@ async function updateDeclarativeRules() {
       removeRuleIds: existingIds,
       addRules: rules,
     });
-  } catch (err) {}
+  } catch {}
 }
 
 chrome.runtime.onStartup.addListener(updateDeclarativeRules);
@@ -128,6 +118,6 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
         await chrome.tabs.update(blockedTabs[0].id!, { active: true });
         await chrome.tabs.remove(tabId);
       }
-    } catch (err) {}
+    } catch {}
   }
 });

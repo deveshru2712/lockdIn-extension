@@ -1,12 +1,13 @@
 const DASHBOARD_URL = [
+  "https://lockdin.in",
   "https://www.lockdin.in",
-  //  "http://localhost:3000"
+  // "http://localhost:3000",
 ];
 
 // Automatically choose correct dashboard URL
 function getDashboardUrl() {
   const isLocal = window.location.hostname.includes("localhost");
-  return isLocal ? DASHBOARD_URL[1] : DASHBOARD_URL[0];
+  return isLocal ? DASHBOARD_URL[2] : DASHBOARD_URL[1];
 }
 
 async function checkAndRedirect() {
@@ -24,7 +25,6 @@ async function checkAndRedirect() {
     const isBlocked = allSites.some((site) => {
       let sitePattern = site.trim().toLowerCase().replace("www.", "");
 
-      // Allow "instagram" to match as "instagram.com"
       if (!sitePattern.includes(".")) sitePattern = `${sitePattern}.com`;
 
       return (
